@@ -1,6 +1,6 @@
-##Shortcut-Stacked Sentence Encoders for Multi-Domain Inference
+##A Decomposable Attention Model for Natural Language Inference
 
-This is an adaptation in dynet of the model presented in https://arxiv.org/pdf/1708.02312.pdf
+This is an adaptation in dynet of the model presented in https://arxiv.org/pdf/1606.01933v1.pdf
 
 I used the glove.42B.300d.txt.
 Download them from: http://nlp.stanford.edu/data/glove.42B.300d.zip
