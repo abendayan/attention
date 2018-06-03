@@ -24,14 +24,10 @@ class Embedding:
         self.words["UNK"] = self.UNK
         self.words_ix["UNK"] = len(self.words_ix)
         self.words_to_ix = { id : word for word, id in self.words_ix.iteritems() }
-        # self.known = 0
-        # self.unknown = 0
 
     def get_embed_word(self, word):
         if word in self.words:
-            # self.known += 1
             return self.words_ix[word]
-        # self.unknown += 1
         return self.words_ix["UNK"]
 
     def get_embed_from_ix(self, id):
@@ -56,7 +52,6 @@ class Embedding:
     def build_vectors(self, file_name, words_in_file):
         words = {}
         print "Start reading the embedding file " + file_name
-        # lines = open(file_name, "r").read().split("\n")
         with open(file_name, "r") as lines:
             for line in lines:
                 vector = line.split()
@@ -72,7 +67,7 @@ class Embedding:
 
 
 class SNLI:
-    def __init__(self, type, file_name):
+    def __init__(self, type, file_name, train = False):
         self.data = []
         print "Start reading the snli type " + type + " in file " + file_name
         self.sentence = []
@@ -85,7 +80,7 @@ class SNLI:
                     label = LABELS[gold]
                     sent1 = data["sentence1"].lower().rstrip(".").split()
                     sent2 = data["sentence2"].lower().rstrip(".").split()
-                    if len(sent1) <= 10 and len(sent2) <= 10:
+                    if train:
                         for word in sent1:
                             if word not in self.words:
                                 self.words[word] = len(self.words)
@@ -93,15 +88,7 @@ class SNLI:
                             if word not in self.words:
                                 self.words[word] = len(self.words)
 
-                        self.sentence.append((sent1, sent2, label))
-                # self.sentence.append((data["sentence1"].lower().rstrip(".").split(), data["sentence2"].lower().rstrip(".").split(), label))
-                    # if len(sent1) <= 10 and len(sent2) <= 10:
-                    #     sentence1 = embedding.all_embed_words(sent1)
-                    #     sentence2 = embedding.all_embed_words(sent2)
-                    #     # # print sentence1
-                    #     #
-                    #     self.data.append((sentence1, sentence2, label))
-                    # gfd
+                    self.sentence.append((sent1, sent2, label))
         print "Got from the file " + file_name + " " + str(len(self.data)) + " pairs"
 
     def define_sent_with_embeddings(self, embedding):
@@ -132,16 +119,11 @@ class Trainer:
     def __init__(self, embedding_size, hidden_size, labels_size, embedding):
         self.embedding = embedding
         self.model = dy.Model()
-        self.trainer = dy.SimpleSGDTrainer(self.model)
-        # self.trainer = dy.AdagradTrainer(self.model, 0.05)
+        self.trainer = dy.AdagradTrainer(self.model, 0.05)
 
         self.linear = self.model.add_parameters((embedding_size, hidden_size))
-        # print hidden_size
         self.feed_F = FeedForward(self.model, (hidden_size, hidden_size), (hidden_size, hidden_size), 0.2)
         self.feed_G = FeedForward(self.model, (hidden_size, 2*hidden_size), (hidden_size, hidden_size), 0.2)
-
-        # self.mlpG1 = self.model.add_parameters((2 * hidden_size, hidden_size))
-        # self.mlpG2 = self.model.add_parameters((hidden_size, hidden_size))
 
         self.h_step_1 = self.model.add_parameters((2*hidden_size, hidden_size))
         self.h_step_2 = self.model.add_parameters((hidden_size, hidden_size))
@@ -197,22 +179,18 @@ class Trainer:
         final = dy.transpose(sent_h * final)
         return final
 
-def save_in_graph(data, type):
-    plt.figure(0)
-    plt.plot(range(len(data)), [a[i] for a in data])
-    plt.xlabel('Epochs')
+def save_in_graph(data, type, i):
+    plt.figure(i)
+    plt.plot(range(len(data)), [a for a in data])
+    plt.xlabel('Sentence seen')
     plt.ylabel(type)
     plt.savefig(type + '.png')
 
 if __name__ == '__main__':
     print "Load train"
-    train = SNLI("train", config.SNLI_ROOT + "train.jsonl")
+    train = SNLI("train", config.SNLI_ROOT + "train.jsonl", True)
     embedding = Embedding(config.GLOVE_ROOT + "glove.42B.300d.txt", train.words)
     train.define_sent_with_embeddings(embedding)
-    # load train/dev/test data
-    print "="*20
-    print "Load dev"
-    # dev = SNLI("dev", config.SNLI_ROOT + "dev.jsonl", embedding)
     print "="*20
     print "Load test"
     test = SNLI("test", config.SNLI_ROOT + "test.jsonl")
@@ -220,18 +198,14 @@ if __name__ == '__main__':
 
     model = Trainer(300, 200, len(LABELS), embedding)
 
-    # modelFileCache = Path(args.model)
-    # if modelFileCache.is_file():
-    #     model.load(args.model)
-
     losses = []
 
     loss = 0
     checked = 0
     test_accuracy = []
     train_accuracy = []
-    batch_size = 32
-    for epoch in range(3):
+    batch_size = 1000
+    for epoch in range(8):
         print "Start epoch " + str(epoch + 1)
         random.shuffle(train.data)
         dy.renew_cg()
@@ -251,8 +225,6 @@ if __name__ == '__main__':
             else:
                 bad += 1
             if i % batch_size == 0 and i > 0:
-                # print len(errors)
-                # print errors
                 sum_errors = dy.esum(errors)
                 loss += sum_errors.value()
                 sum_errors.backward()
@@ -260,14 +232,6 @@ if __name__ == '__main__':
                 checked += batch_size
                 dy.renew_cg()
                 errors = []
-
-
-                # errors = []
-                # dy.renew_cg()
-                # if i > 100*20:
-                #     print "done"
-                #     print i
-                # finish the batch
             if i % (batch_size * 5) == 0 and i > 0:
                 avgLoss = loss / checked
                 losses.append(avgLoss)
@@ -281,16 +245,12 @@ if __name__ == '__main__':
                 test_accuracy.append(accuracy)
                 print "Test Accuracy: " + str(accuracy)
                 print "Time passed " + str(passed_time(start_time))
-                # print "Start calculation of accuracy on train, " + str(len(train.data)) + " examples"
-                # accuracy_train = model.accuracy(train.data)
                 train_accuracy.append(good/(good+bad))
                 print "Train Accuracy: " + str(good/(good+bad))
                 good = 0.0
                 bad = 0.0
 
-                # model.save(args.model)
 
-
-    save_in_graph(losses, "loss_train")
-    save_in_graph(test_accuracy, "test_accuracy")
-    save_in_graph(train_accuracy, "train_accuracy")
+    save_in_graph(losses, "loss_train", 0)
+    save_in_graph(test_accuracy, "test_accuracy", 1)
+    save_in_graph(train_accuracy, "train_accuracy", 2)

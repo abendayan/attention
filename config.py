@@ -1,5 +1,5 @@
 ROOT_DIR = ""
-DATA_ROOT = ROOT_DIR + "data/"
+DATA_ROOT = "data/"
 GLOVE_ROOT = DATA_ROOT + "glove/"
 SNLI_ROOT = DATA_ROOT + "snli_1.0/snli_1.0_"
 
